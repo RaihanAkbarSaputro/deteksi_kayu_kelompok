@@ -4,18 +4,25 @@ import os
 from PIL import Image
 import subprocess
 import pymysql
-import cv2
 import re
 import base64
 import bcrypt
 from datetime import datetime
 import io
 
-# Path ke model yang dilatih
+# Path to trained model
 model_path = 'best_93_yoloDual.pt'
 detect_dual_script_path = 'yolov9/detect_dual.py'
 
-# Fungsi untuk koneksi ke database
+# Directory for input files
+input_files_path = 'input_files'
+output_files_path = 'output_files'
+
+# Create directory if it doesn't exist
+os.makedirs(input_files_path, exist_ok=True)
+os.makedirs(output_files_path, exist_ok=True)
+
+# Function to get a database connection
 def get_db_connection():
     return pymysql.connect(
         host='db4free.net',
@@ -25,59 +32,65 @@ def get_db_connection():
         cursorclass=pymysql.cursors.DictCursor 
     )
 
-# Koneksi ke database
-conn = get_db_connection()
-cursor = conn.cursor()
-
-# Menyimpan data registrasi ke dalam database MySQL
+# Save registration data to MySQL database
 def save_registration_data(username, email, password):
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    query = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
-    values = (username, email, hashed_password)
-    cursor.execute(query, values)
-    conn.commit()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
+        values = (username, email, hashed_password)
+        cursor.execute(query, values)
+        conn.commit()
 
-# Memverifikasi kredensial pengguna di database
+# Verify user credentials from the database
 def verify_credentials(username, password):
-    query = "SELECT id, password FROM users WHERE username = %s"
-    values = (username,)
-    cursor.execute(query, values)
-    result = cursor.fetchone()
-    if result and bcrypt.checkpw(password.encode('utf-8'), result['password'].encode('utf-8')):
-        st.session_state['user_id'] = result['id']
-        return True
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = "SELECT id, password FROM users WHERE username = %s"
+        values = (username,)
+        cursor.execute(query, values)
+        result = cursor.fetchone()
+        if result and bcrypt.checkpw(password.encode('utf-8'), result['password'].encode('utf-8')):
+            st.session_state['user_id'] = result['id']
+            return True
     return False
 
-# Validasi email
+# Validate email
 def is_valid_email(email):
     email_regex = r'^[\w\.-]+@[\w\.-]+\.\w+$'
     return re.match(email_regex, email) is not None
 
-# Validasi password
+# Validate password
 def is_valid_password(password):
     return any(c.isalpha() for c in password) and any(c.isdigit() for c in password)
 
-# Menyimpan hasil deteksi ke dalam database
+# Save detection result to the database
 def save_detection_result(user_id, image_id, result_type, result_data):
-    query = "INSERT INTO detection_results (user_id, image_id, result_type, result_data) VALUES (%s, %s, %s, %s)"
-    values = (user_id, image_id, result_type, result_data)
-    cursor.execute(query, values)
-    conn.commit()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = "INSERT INTO detection_results (user_id, image_id, result_type, result_data) VALUES (%s, %s, %s, %s)"
+        values = (user_id, image_id, result_type, result_data)
+        cursor.execute(query, values)
+        conn.commit()
 
-# Menyimpan informasi gambar ke dalam database
+# Save image information to the database
 def save_image_info(user_id, image_type, image_data):
-    query = "INSERT INTO images (user_id, image_type, image_data) VALUES (%s, %s, %s)"
-    values = (user_id, image_type, image_data)
-    cursor.execute(query, values)
-    conn.commit()
-    return cursor.lastrowid
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = "INSERT INTO images (user_id, image_type, image_data) VALUES (%s, %s, %s)"
+        values = (user_id, image_type, image_data)
+        cursor.execute(query, values)
+        conn.commit()
+        return cursor.lastrowid
 
-# Menyimpan informasi analisis gambar ke dalam database
+# Save image analysis information to the database
 def save_image_analysis(user_id, username, image_path, input_image_id, output_image_id):
-    query = "INSERT INTO image_analysis (user_id, username, image_path, input_image_id, output_image_id) VALUES (%s, %s, %s, %s, %s)"
-    values = (user_id, username, image_path, input_image_id, output_image_id)
-    cursor.execute(query, values)
-    conn.commit()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = "INSERT INTO image_analysis (user_id, username, image_path, input_image_id, output_image_id) VALUES (%s, %s, %s, %s, %s)"
+        values = (user_id, username, image_path, input_image_id, output_image_id)
+        cursor.execute(query, values)
+        conn.commit()
 
 # User Authentication
 def login():
@@ -98,18 +111,18 @@ def login():
             login_button = st.form_submit_button("Login")
 
         if login_button:
-            # Memverifikasi kredensial pengguna
+            # Verify user credentials
             if verify_credentials(username, password):
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
-                st.rerun()  # Updated from st.experimental_rerun
+                st.rerun()
             else:
-                st.error("Invalid username atau password")
+                st.error("Username atau password tidak valid")
         
         st.markdown("Belum punya akun?")
         if st.button("Registrasi"):
             st.session_state['register'] = True
-            st.rerun()  # Updated from st.experimental_rerun
+            st.rerun()
 
 # User Registration
 def register():
@@ -131,16 +144,17 @@ def register():
                     st.error("Password harus terdiri dari setidaknya satu huruf dan satu angka.")
                 
                 if username.strip() and email.strip() and password.strip() and is_valid_email(email) and is_valid_password(password):
-                    # Menyimpan data registrasi ke dalam database
+                    # Save registration data to the database
                     save_registration_data(username, email, password)
                     st.success("Registrasi berhasil. Silakan login.")
                     st.session_state['register'] = False
+                    st.experimental_rerun()
                 else:
                     st.error("Terdapat kesalahan dalam registrasi. Pastikan semua field terisi dengan benar.")
 
         if st.button("Kembali ke Login"):
             st.session_state['register'] = False
-            st.rerun()  # Updated from st.experimental_rerun
+            st.experimental_rerun()
 
 # Main app
 def main(): 
@@ -167,7 +181,7 @@ def main():
         st.sidebar.title("Navigasi")
         if st.sidebar.button('Deteksi', key='deteksi'):
             st.session_state.selected_tab = "Deteksi"
-        if st.sidebar.button('Riwayat Gambar', key='riwayat'):
+        if st.sidebar.button('Riwayat Gambar',key='riwayat'):
             st.session_state.selected_tab = "Riwayat Gambar"
 
         if "selected_tab" not in st.session_state:
@@ -182,7 +196,11 @@ def main():
                 image = Image.open(uploaded_file)
                 st.image(image, caption='Gambar Kayu yang Diupload', use_column_width=True)
 
-                # Save input image to database
+                # Save input image to input_files directory
+                input_image_path = os.path.join(input_files_path, uploaded_file.name)
+                image.save(input_image_path)
+
+                # Save image info to the database
                 with io.BytesIO() as output:
                     image.save(output, format="PNG")
                     image_binary = output.getvalue()
@@ -191,31 +209,25 @@ def main():
                 user_id = st.session_state['user_id']
                 input_image_id = save_image_info(user_id, image_type, image_binary)
 
-                # Use a valid path for the image
-                image_path = f'input_image_{input_image_id}.png'
-                with open(image_path, 'wb') as f:
-                    f.write(image_binary)
-
                 if st.button('Deteksi'):
-                    with st.spinner('Proses deteksi sedang berjalan...'):
-                        result = subprocess.run(['python', detect_dual_script_path, '--weights', model_path, '--img', '640', '--conf', '0.1', '--source', image_path, '--project', '.', '--name', f'output_{input_image_id}', '--exist-ok'], capture_output=True, text=True)
-
-                        # Assuming the output image path is correctly handled by the script
-                        detected_image_path = f'output_{input_image_id}/{os.path.basename(image_path)}'
+                        result = subprocess.run(['python', detect_dual_script_path, '--weights', model_path, '--img', '640', '--conf', '0.1', '--source', input_image_path, '--project', output_files_path, '--name', f'results', '--exist-ok'])              
+                        # Assume the output image is saved directly in output_files
+                        detected_image_filename = f'{uploaded_file.name}'
+                        detected_image_path = os.path.join(output_files_path, 'results', detected_image_filename)
 
                         if os.path.exists(detected_image_path):
-                            # Load and display detected image
+                            # Load and display the detection result image
                             result_image = Image.open(detected_image_path)
                             st.image(result_image, caption='Hasil Deteksi', use_column_width=True)
 
-                            # Save detected image to database
+                            # Save detection result to the database
                             with open(detected_image_path, 'rb') as f:
                                 result_image_binary = f.read()
-                            result_type = "image"
-                            output_image_id = save_detection_result(user_id, input_image_id, result_type, result_image_binary)
+                                result_type = "detection_result"
+                                output_image_id = save_detection_result(user_id, input_image_id, result_type, result_image_binary)
 
-                            # Save image analysis to database
-                            save_image_analysis(user_id, st.session_state['username'], image_path, input_image_id, output_image_id)
+                            # Save image analysis to the database
+                            save_image_analysis(user_id, st.session_state['username'], input_image_path, input_image_id, output_image_id)
 
                             # Display wood quality information
                             st.markdown(
@@ -233,47 +245,47 @@ def main():
                                 """,
                                 unsafe_allow_html=True
                             )
-
-                            # Remove input image after processing
-                            os.remove(image_path)
-
                         else:
-                            st.error('Folder hasil deteksi tidak ditemukan.')
+                            st.error('Gambar hasil deteksi tidak ditemukan.')
 
         elif st.session_state.selected_tab == 'Riwayat Gambar':
             st.title('Riwayat Gambar')
 
-            # Mengambil user_id dari session state
+            # Get user_id from session state
             user_id = st.session_state['user_id']
 
-            # Fetch image log dari database untuk user saat ini
-            query = """
-            SELECT images.id AS image_id, images.created_at AS image_created_at, detection_results.result_data 
-            FROM images 
-            LEFT JOIN detection_results ON images.id = detection_results.image_id 
-            LEFT JOIN image_analysis ON images.id = image_analysis.input_image_id 
-            WHERE images.user_id = %s 
-            ORDER BY images.created_at DESC
-            """
-            cursor.execute(query, (user_id,))
-            image_log = cursor.fetchall()
+            # Retrieve image log from the database for the current user
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                query = """
+                SELECT images.id AS image_id, images.created_at AS image_created_at, detection_results.result_data 
+                FROM images 
+                LEFT JOIN detection_results ON images.id = detection_results.image_id 
+                LEFT JOIN image_analysis ON images.id = image_analysis.input_image_id 
+                WHERE images.user_id = %s 
+                ORDER BY images.created_at DESC
+                """
+                cursor.execute(query, (user_id,))
+                image_log = cursor.fetchall()
 
-            # Tampilkan image log
+            # Display image log
             if not image_log:
-                 st.write('Belum ada hasil deteksi yang tersedia.')
+                st.write('Belum ada hasil deteksi yang tersedia.')
             else:
-              deteksi_count = 0
-              for result_data in image_log:
-               if result_data['result_data'] is not None:
-                deteksi_count += 1
-                st.write(f'**Hasil Deteksi {deteksi_count}:**')
-                result_image = Image.open(io.BytesIO(result_data['result_data']))
-                st.image(result_image, caption=f'Hasil Deteksi (ID: {result_data["image_id"]}, Waktu: {result_data["image_created_at"]})', use_column_width=True)
+                deteksi_count = 0
+                for result_data in image_log:
+                    if result_data['result_data'] is not None:
+                        deteksi_count += 1
+                        st.write(f'**Hasil Deteksi {deteksi_count}:**')
+                        result_image = Image.open(io.BytesIO(result_data['result_data']))
+                        st.image(result_image, caption=f'Hasil Deteksi (ID: {result_data["image_id"]}, Waktu: {result_data["image_created_at"]})', use_column_width=True)
+
         # Logout Button
         st.sidebar.markdown("---")
         if st.sidebar.button("Logout"):
             st.session_state['logged_in'] = False
-            st.rerun()  # Updated from st.experimental_rerun
+            st.session_state['selected_tab'] = "Deteksi"
+            st.experimental_rerun()
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Deteksi Kayu Layak Guna", page_icon="🪵", layout="wide", initial_sidebar_state="expanded")
