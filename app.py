@@ -18,10 +18,10 @@ detect_dual_script_path = 'yolov9/detect_dual.py'
 # Fungsi untuk koneksi ke database
 def get_db_connection():
     return pymysql.connect(
-        host='localhost',
-        user='root',
-        password='',
-        database='deteksi_kayu',
+        host='db4free.net',
+        user='kayu123',
+        password='kayu1234',
+        database='kayudatabase',
         cursorclass=pymysql.cursors.DictCursor 
     )
 
@@ -47,7 +47,6 @@ def verify_credentials(username, password):
         st.session_state['user_id'] = result['id']
         return True
     return False
-
 
 # Validasi email
 def is_valid_email(email):
@@ -103,14 +102,14 @@ def login():
             if verify_credentials(username, password):
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
-                st.experimental_rerun()  # Rerun the app to update the state
+                st.rerun()  # Updated from st.experimental_rerun
             else:
                 st.error("Invalid username atau password")
         
         st.markdown("Belum punya akun?")
         if st.button("Registrasi"):
             st.session_state['register'] = True
-            st.experimental_rerun()
+            st.rerun()  # Updated from st.experimental_rerun
 
 # User Registration
 def register():
@@ -141,7 +140,7 @@ def register():
 
         if st.button("Kembali ke Login"):
             st.session_state['register'] = False
-            st.experimental_rerun()
+            st.rerun()  # Updated from st.experimental_rerun
 
 # Main app
 def main(): 
@@ -192,8 +191,8 @@ def main():
                 user_id = st.session_state['user_id']
                 input_image_id = save_image_info(user_id, image_type, image_binary)
 
-                image_path = f'{input_image_id}.png'
-
+                # Use a valid path for the image
+                image_path = f'input_image_{input_image_id}.png'
                 with open(image_path, 'wb') as f:
                     f.write(image_binary)
 
@@ -201,7 +200,8 @@ def main():
                     with st.spinner('Proses deteksi sedang berjalan...'):
                         result = subprocess.run(['python', detect_dual_script_path, '--weights', model_path, '--img', '640', '--conf', '0.1', '--source', image_path, '--project', '.', '--name', f'output_{input_image_id}', '--exist-ok'], capture_output=True, text=True)
 
-                        detected_image_path = f'output_{input_image_id}/{image_path}'
+                        # Assuming the output image path is correctly handled by the script
+                        detected_image_path = f'output_{input_image_id}/{os.path.basename(image_path)}'
 
                         if os.path.exists(detected_image_path):
                             # Load and display detected image
@@ -273,7 +273,7 @@ def main():
         st.sidebar.markdown("---")
         if st.sidebar.button("Logout"):
             st.session_state['logged_in'] = False
-            st.experimental_rerun()
+            st.rerun()  # Updated from st.experimental_rerun
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Deteksi Kayu Layak Guna", page_icon="🪵", layout="wide", initial_sidebar_state="expanded")
