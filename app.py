@@ -148,13 +148,13 @@ def register():
                     save_registration_data(username, email, password)
                     st.success("Registrasi berhasil. Silakan login.")
                     st.session_state['register'] = False
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Terdapat kesalahan dalam registrasi. Pastikan semua field terisi dengan benar.")
 
         if st.button("Kembali ke Login"):
             st.session_state['register'] = False
-            st.experimental_rerun()
+            st.rerun()
 
 # Main app
 def main(): 
@@ -285,7 +285,7 @@ def main():
         if st.sidebar.button("Logout"):
             st.session_state['logged_in'] = False
             st.session_state['selected_tab'] = "Deteksi"
-            st.experimental_rerun()
+            st.rerun()
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Deteksi Kayu Layak Guna", page_icon="🪵", layout="wide", initial_sidebar_state="expanded")
