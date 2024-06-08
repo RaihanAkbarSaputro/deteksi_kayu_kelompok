@@ -25,10 +25,10 @@ os.makedirs(output_files_path, exist_ok=True)
 # Function to get a database connection
 def get_db_connection():
     return pymysql.connect(
-        host='db4free.net',
-        user='kayu123',
-        password='kayu1234',
-        database='kayudatabase',
+        host='',
+        user='',
+        password='',
+        database='',
         cursorclass=pymysql.cursors.DictCursor 
     )
 
