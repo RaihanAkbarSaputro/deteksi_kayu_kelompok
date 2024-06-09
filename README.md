@@ -7,7 +7,7 @@ Anggota:
 2. Agil Said Ramadon
 3. Fatimah Azzahrah
 4. Hajrian Hidayat
-5. Aini Zufria Ardiana
+5. Raihan Akbar Saputro
 
 Github ini dibuat untuk project capstone kami sebagai tugas Challenge.
 
